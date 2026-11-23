@@ -12,6 +12,7 @@
   <nav>
     <a href="{{ url_for('index') }}">汇总与上传</a>
     <a href="{{ url_for('pumps') }}">台账</a>
+    <a href="{{ url_for('roster_page') }}">配对名单</a>
     <a href="{{ url_for('query_page') }}">故障率查询</a>
   </nav>
 </header>
@@ -27,6 +28,6 @@
   {% endwith %}
   {% block content %}{% endblock %}
 </main>
-<footer class="footer">SQLite 事务保证：台账与汇总同时生效，失败回滚保留原值；查询只读汇总表。</footer>
+<footer class="footer">SQLite 事务保证：台账、汇总与配对名单同时生效，失败回滚沿用原数据；查询只读。</footer>
 </body>
 </html>

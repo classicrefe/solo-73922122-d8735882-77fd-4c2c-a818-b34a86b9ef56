@@ -10,6 +10,7 @@ from . import services
 from .csvio import parse_csv
 from .db import connect, init_db
 from .lifetable import EVENT_LABELS, EVENT_TYPES, PumpRecord
+from .matching import MAX_CONTROL_PICKS, MAX_FAILURE_PICKS
 
 
 def create_app(db_path: str | None = None) -> Flask:
@@ -70,7 +71,11 @@ def create_app(db_path: str | None = None) -> Flask:
         except Exception as exc:  # pragma: no cover - defensive
             flash(f"写入失败，已保留原有台账与汇总: {exc}", "error")
             return redirect(url_for("index"))
-        flash(f"上传成功：台账已整体替换为 {result['pump_count']} 台泵，汇总已同步重算",
+        roster_note = ""
+        if result.get("pair_count") is not None:
+            roster_note = f"；现行名单已按原选泵号与工时差上限重算，配成 {result['pair_count']} 对"
+        flash(f"上传成功：台账已整体替换为 {result['pump_count']} 台泵，"
+              f"汇总已同步重算{roster_note}",
               "ok")
         return redirect(url_for("index"))
 
@@ -121,7 +126,10 @@ def create_app(db_path: str | None = None) -> Flask:
             flash(f"保存失败，已保留原值: {exc}", "error")
             return redirect(url_for("pumps"))
         label = "更正" if result["action"] == "updated" else "新增"
-        flash(f"泵 {record.pump_id} {label}成功，台账与汇总已在同一事务内生效", "ok")
+        pair_note = ""
+        if result.get("pair_count") is not None:
+            pair_note = f"；现行名单已按原选泵号与工时差上限重算，配成 {result['pair_count']} 对"
+        flash(f"泵 {record.pump_id} {label}成功，台账、汇总与名单已在同一事务内生效{pair_note}", "ok")
         return redirect(url_for("pumps"))
 
     def _read_pump_form(form, fixed_id=None):
@@ -150,6 +158,63 @@ def create_app(db_path: str | None = None) -> Flask:
         if not errors:
             record = PumpRecord(pump_id, entry, exit_hours, event_type)
         return dict(form), record, errors
+
+    # --------------------------------------------------- case-control roster
+    @app.route("/roster", methods=["GET"])
+    def roster_page():
+        conn = db_conn()
+        roster = services.get_roster(conn)
+        pumps = services.list_pumps(conn)
+        selected_failures = {f["pump_id"] for f in roster["failures"]} if roster else set()
+        selected_candidates = {c["pump_id"] for c in roster["candidates"]} if roster else set()
+        max_diff = roster["max_diff_hours"] if roster else None
+        return render_template(
+            "roster.html",
+            roster=roster,
+            pumps=pumps,
+            event_labels=EVENT_LABELS,
+            max_failure_picks=MAX_FAILURE_PICKS,
+            max_control_picks=MAX_CONTROL_PICKS,
+            selected_failures=selected_failures,
+            selected_candidates=selected_candidates,
+            max_diff=max_diff,
+        )
+
+    @app.route("/roster/save", methods=["POST"])
+    def roster_save():
+        failure_ids = request.form.getlist("failure_ids")
+        candidate_ids = request.form.getlist("candidate_ids")
+        raw_diff = request.form.get("max_diff_hours", "").strip()
+        try:
+            max_diff = float(raw_diff)
+        except ValueError:
+            flash("入册工时差上限必须是非负数字", "error")
+            return redirect(url_for("roster_page"))
+        try:
+            result = services.save_roster(db_conn(), failure_ids,
+                                          candidate_ids, max_diff)
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("roster_page"))
+        except Exception as exc:  # pragma: no cover - defensive
+            flash(f"名单保存失败，已沿用原名单: {exc}", "error")
+            return redirect(url_for("roster_page"))
+        flash(
+            f"名单已保存：故障泵 {result['failure_count']} 台、"
+            f"候选对照 {result['candidate_count']} 台、工时差上限 "
+            f"{result['max_diff_hours']:g} 小时；配成 {result['pair_count']} 对，"
+            f"其中保留上次配对 {result['retained_count']} 对。"
+            f"台账、汇总与名单已在同一事务内生效",
+            "ok",
+        )
+        return redirect(url_for("roster_page"))
+
+    @app.route("/api/roster")
+    def api_roster():
+        roster = services.get_roster(db_conn())
+        if roster is None:
+            return jsonify(error="尚未保存任何名单"), 404
+        return jsonify(roster)
 
     # ---------------------------------------------------- read-only query page
     @app.route("/query", methods=["GET"])

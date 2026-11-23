@@ -37,6 +37,39 @@ CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- Current case-control roster specification (single row, id = 1).
+CREATE TABLE IF NOT EXISTS roster_spec (
+    id              INTEGER PRIMARY KEY CHECK (id = 1),
+    max_diff_hours  REAL NOT NULL CHECK (max_diff_hours >= 0),
+    updated_at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS roster_failures (
+    roster_id   INTEGER NOT NULL,
+    pump_id     TEXT NOT NULL,
+    pick_order  INTEGER NOT NULL,
+    PRIMARY KEY (roster_id, pump_id)
+);
+
+CREATE TABLE IF NOT EXISTS roster_candidates (
+    roster_id   INTEGER NOT NULL,
+    pump_id     TEXT NOT NULL,
+    pick_order  INTEGER NOT NULL,
+    PRIMARY KEY (roster_id, pump_id)
+);
+
+-- Pairs produced by the latest roster build; feeds the retention
+-- tie-breaker on the next rebuild after ledger corrections.
+CREATE TABLE IF NOT EXISTS roster_pairs (
+    roster_id    INTEGER NOT NULL,
+    failure_id   TEXT NOT NULL,
+    control_id   TEXT NOT NULL,
+    diff_hours   REAL NOT NULL,
+    retained     INTEGER NOT NULL,
+    pick_order   INTEGER NOT NULL,
+    PRIMARY KEY (roster_id, failure_id)
+);
 """
 
 

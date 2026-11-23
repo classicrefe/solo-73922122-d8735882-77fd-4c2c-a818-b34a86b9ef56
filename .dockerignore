@@ -8,3 +8,4 @@ instance/
 *.db-shm
 .pytest_cache/
 .git/
+.pylibs/

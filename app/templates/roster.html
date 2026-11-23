@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}故障泵-对照泵配对名单{% endblock %}
+{% set state_class = {
+  'matched': 'badge-ok',
+  'unmatched': 'badge-warn',
+  'missing': 'badge-err',
+  'not_failure': 'badge-err'
+} %}
+{% block content %}
+<div class="page-head">
+  <h1>故障泵 / 对照泵配对名单</h1>
+  {% if roster %}
+  <span class="hint">名单更新时间 (UTC)：{{ roster.updated_at }}</span>
+  {% endif %}
+</div>
+
+{% if roster %}
+<section class="card">
+  <h2>现行名单汇总</h2>
+  <dl class="meta-grid">
+    <div><dt>入册工时差上限</dt><dd>{{ roster.max_diff_hours|string }} 小时</dd></div>
+    <div><dt>已配对</dt><dd class="strong">{{ roster.stats.pair_count }} 对</dd></div>
+    <div><dt>保留上次配对</dt><dd>{{ roster.stats.retained_count }} 对</dd></div>
+    <div><dt>尚未配到对照</dt><dd>{{ roster.stats.unmatched_count }} 台</dd></div>
+    <div><dt>缺记录</dt><dd>{{ roster.stats.missing_count }} 台</dd></div>
+    <div><dt>已改为非故障</dt><dd>{{ roster.stats.not_failure_count }} 台</dd></div>
+    <div><dt>候选对照 / 实际在册可作对照</dt><dd>{{ roster.stats.candidate_total }} / {{ roster.stats.control_total }}</dd></div>
+    <div><dt>已占用对照（每台最多一次）</dt><dd>{{ roster.stats.used_control_count }} 台</dd></div>
+  </dl>
+</section>
+
+<section class="card">
+  <h2>配对明细</h2>
+  {% if roster.pairs %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>故障泵</th><th>故障工时（出册）</th><th>故障泵入册</th>
+        <th>对照泵</th><th>对照泵入册</th><th>入册工时差</th>
+        <th>对照出册 / 结束方式</th><th>上次配对</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in roster.pairs %}
+      <tr>
+        <td>{{ p.failure_id }}</td>
+        <td>{{ '%.2f'|format(p.failure_hours) }}</td>
+        <td>{{ '%.2f'|format(p.failure_entry) }}</td>
+        <td>{{ p.control_id }}</td>
+        <td>{{ '%.2f'|format(p.control_entry) }}</td>
+        <td>{{ '%.2f'|format(p.diff_hours) }}</td>
+        <td>{{ '%.2f'|format(p.control_exit_hours) }} / {{ event_labels[p.control_event] }}</td>
+        <td>{% if p.retained %}<span class="badge badge-ok">保留</span>{% else %}<span class="hint">新配</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">当前没有任何配对。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>原选故障泵状态（{{ roster.failures|length }} 台）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>泵号</th><th>状态</th><th>故障工时</th><th>说明</th></tr></thead>
+    <tbody>
+    {% for f in roster.failures %}
+      <tr>
+        <td>{{ f.pump_id }}</td>
+        <td><span class="badge {{ state_class[f.state] }}">{{ f.state_label }}</span></td>
+        <td>{% if f.failure_hours is not none %}{{ '%.2f'|format(f.failure_hours) }}{% else %}—{% endif %}</td>
+        <td class="note-cell">{{ f.reason or '已配到对照泵' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>候选对照占用情况（{{ roster.candidates|length }} 台）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>泵号</th><th>入册</th><th>出册</th><th>结束方式</th><th>状态</th><th>配对给</th></tr></thead>
+    <tbody>
+    {% for c in roster.candidates %}
+      <tr>
+        <td>{{ c.pump_id }}</td>
+        <td>{% if c.exists %}{{ '%.2f'|format(c.entry_hours) }}{% else %}—{% endif %}</td>
+        <td>{% if c.exists %}{{ '%.2f'|format(c.exit_hours) }}{% else %}—{% endif %}</td>
+        <td>{% if c.exists %}{{ event_labels[c.event_type] }}{% else %}<span class="badge badge-err">缺记录</span>{% endif %}</td>
+        <td>
+          {% if not c.exists %}<span class="badge badge-err">缺记录</span>
+          {% elif c.is_selected_failure %}<span class="badge badge-warn">已选故障泵，不可作对照</span>
+          {% elif c.used %}<span class="badge badge-ok">已占用</span>
+          {% else %}<span class="hint">未使用</span>{% endif %}
+        </td>
+        <td>{{ c.paired_with or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>{{ '调整 / 重存名单' if roster else '新建配对名单' }}</h2>
+  <form method="post" action="{{ url_for('roster_save') }}" id="roster-form" class="roster-form">
+    <label class="diff-label">两泵入册工时允许相差的上限（小时）
+      <input name="max_diff_hours" type="number" step="any" min="0" required
+             value="{{ '' if max_diff is none else max_diff }}" placeholder="例如 500">
+    </label>
+
+    <div class="pick-columns">
+      <div class="pick-col">
+        <h3>故障泵（最多 {{ max_failure_picks }} 台，已选 <span id="f-count">0</span> 台）</h3>
+        {% if pumps %}
+        <div class="pick-list">
+          {% for p in pumps %}
+          <label class="pick-row {{ 'disabled' if p.event_type != 'failure' }}">
+            <input type="checkbox" name="failure_ids" value="{{ p.pump_id }}"
+                   class="failure-cb"
+                   {% if p.pump_id in selected_failures %}checked{% endif %}
+                   {% if p.event_type != 'failure' %}disabled{% endif %}>
+            <span>{{ p.pump_id }}</span>
+            <span class="hint">{{ '%.0f'|format(p.entry_hours) }} → {{ '%.0f'|format(p.exit_hours) }}</span>
+            <span class="badge {{ 'badge-ok' if p.event_type == 'failure' else 'badge-muted' }}">{{ event_labels[p.event_type] }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty">台账为空，请先在首页上传 CSV。</p>
+        {% endif %}
+      </div>
+
+      <div class="pick-col">
+        <h3>候选对照泵（最多 {{ max_control_picks }} 台，已选 <span id="c-count">0</span> 台）</h3>
+        {% if pumps %}
+        <div class="pick-list">
+          {% for p in pumps %}
+          <label class="pick-row">
+            <input type="checkbox" name="candidate_ids" value="{{ p.pump_id }}"
+                   class="candidate-cb"
+                   {% if p.pump_id in selected_candidates %}checked{% endif %}>
+            <span>{{ p.pump_id }}</span>
+            <span class="hint">{{ '%.0f'|format(p.entry_hours) }} → {{ '%.0f'|format(p.exit_hours) }}</span>
+            <span class="badge badge-muted">{{ event_labels[p.event_type] }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty">台账为空，请先在首页上传 CSV。</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="hint" id="roster-warn"></p>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">保存现行名单（台账、汇总、名单同事务生效）</button>
+    </div>
+    <p class="hint">
+      规则：对照泵须在故障工时已入册、出册在该工时之后，或恰在该工时观察结束；
+      入册工时差不超过上限；已选故障泵不可作对照；每台对照最多使用一次。
+      先最大化配对数，同数时保留最多的上次配对。保存后单泵更正或整表重传会按原选泵号与工时差上限自动重算。
+    </p>
+  </form>
+</section>
+
+<script>
+(function () {
+  var form = document.getElementById('roster-form');
+  var fBoxes = Array.prototype.slice.call(document.querySelectorAll('.failure-cb'));
+  var cBoxes = Array.prototype.slice.call(document.querySelectorAll('.candidate-cb'));
+  var fCount = document.getElementById('f-count');
+  var cCount = document.getElementById('c-count');
+  var warn = document.getElementById('roster-warn');
+  var MAX_F = {{ max_failure_picks }};
+  var MAX_C = {{ max_control_picks }};
+
+  function refresh() {
+    var f = fBoxes.filter(function (b) { return b.checked; });
+    var c = cBoxes.filter(function (b) { return b.checked; });
+    fCount.textContent = f.length;
+    cCount.textContent = c.length;
+    var fIds = {};
+    f.forEach(function (b) { fIds[b.value] = true; });
+    var messages = [];
+    if (f.length > MAX_F) messages.push('故障泵最多只能选 ' + MAX_F + ' 台');
+    if (c.length > MAX_C) messages.push('候选对照最多只能选 ' + MAX_C + ' 台');
+    var overlap = c.filter(function (b) { return fIds[b.value]; });
+    if (overlap.length) messages.push('已选故障泵不能同时作对照: ' + overlap.map(function (b) { return b.value; }).join('、'));
+    warn.textContent = messages.join('；');
+    warn.style.color = messages.length ? '#d93025' : '';
+  }
+  fBoxes.concat(cBoxes).forEach(function (b) {
+    b.addEventListener('change', refresh);
+  });
+  form.addEventListener('submit', function (e) {
+    refresh();
+    if (warn.textContent) { e.preventDefault(); }
+  });
+  refresh();
+})();
+</script>
+{% endblock %}

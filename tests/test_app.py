@@ -7,6 +7,8 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), ".pylibs"))
 
 _tmp_dir = tempfile.mkdtemp(prefix="pump-test-")
 os.environ["PUMP_DB"] = os.path.join(_tmp_dir, "test.db")

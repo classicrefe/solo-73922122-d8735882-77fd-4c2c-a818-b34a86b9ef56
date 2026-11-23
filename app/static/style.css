@@ -66,4 +66,29 @@ tbody tr:nth-child(even) { background: #fafbfd; }
 .help pre { background: #f2f4f8; padding: 10px; border-radius: 6px; overflow-x: auto; }
 .empty { color: var(--muted); }
 .hint { color: var(--muted); font-size: 13px; }
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 10px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.badge-ok { background: #e6f4ea; color: #1e6b34; border: 1px solid #34a853; }
+.badge-warn { background: #fef7e0; color: #8a6100; border: 1px solid #f9ab00; }
+.badge-err { background: var(--err-bg); color: #a50e0e; border: 1px solid var(--err-border); }
+.badge-muted { background: #eef1f5; color: var(--muted); border: 1px solid var(--border); }
+.note-cell { text-align: left; white-space: normal; min-width: 220px; }
+.roster-form .diff-label { display: grid; gap: 4px; font-weight: 600; max-width: 360px; margin-bottom: 16px; }
+.roster-form .diff-label input {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;
+}
+.pick-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .pick-columns { grid-template-columns: 1fr; } }
+.pick-col { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.pick-col h3 { margin: 0 0 10px; }
+.pick-list { max-height: 360px; overflow-y: auto; display: grid; gap: 6px; }
+.pick-row {
+  display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px;
+  align-items: center; padding: 5px 8px; border-radius: 6px; font-weight: 400;
+  border: 1px solid transparent;
+}
+.pick-row:hover { background: #f6f8fc; }
+.pick-row.disabled { opacity: .55; }
 .footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 18px; }
