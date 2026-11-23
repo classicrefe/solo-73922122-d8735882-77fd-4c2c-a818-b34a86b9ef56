@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>任意小时累计故障率查询</h1>
+<section class="card">
+  <form method="get" action="{{ url_for('query_page') }}" class="query-form">
+    <label>累计运行小时
+      <input name="hours" type="number" step="any" min="0" value="{{ hours_raw }}" required autofocus>
+    </label>
+    <button type="submit" class="btn btn-primary">查询</button>
+  </form>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+</section>
+
+{% if result %}
+<section class="card">
+  <h2>查询结果（{{ '%.2f'|format(result.hours) }} 小时）</h2>
+  <dl class="meta-grid">
+    <div><dt>累计故障发生率 F_f</dt><dd class="strong">{{ '%.4f'|format(result.cum_failure) }}（{{ '%.2f'|format(result.cum_failure * 100) }}%）</dd></div>
+    <div><dt>累计预防更换率 F_p</dt><dd>{{ '%.4f'|format(result.cum_preventive) }}（{{ '%.2f'|format(result.cum_preventive * 100) }}%）</dd></div>
+    <div><dt>无两类事件概率 S</dt><dd>{{ '%.4f'|format(result.survival) }}（{{ '%.2f'|format(result.survival * 100) }}%）</dd></div>
+  </dl>
+  <p class="hint">结果取不晚于查询小时的最近一个时点值（阶梯函数，右连续）。接口：<code>GET /api/query?hours=1500</code></p>
+
+  {% if result.basis_row %}
+  <h3>该结果使用的逐时点计数（时点 {{ '%.2f'|format(result.basis_row.t_hours) }}）</h3>
+  <div class="table-wrap">
+  <table>
+    <tbody>
+      <tr><th>新入册数</th><td>{{ result.basis_row.entered }}</td></tr>
+      <tr><th>当时在册数 n(t)</th><td>{{ result.basis_row.at_risk }}</td></tr>
+      <tr><th>故障数 d_f</th><td>{{ result.basis_row.failures }}</td></tr>
+      <tr><th>预防更换数 d_p</th><td>{{ result.basis_row.preventive }}</td></tr>
+      <tr><th>观察结束数 d_c</th><td>{{ result.basis_row.censored }}</td></tr>
+      <tr><th>故障风险率 d_f/n</th><td>{{ '%.6f'|format(result.basis_row.hazard_failure) }}</td></tr>
+      <tr><th>预防风险率 d_p/n</th><td>{{ '%.6f'|format(result.basis_row.hazard_preventive) }}</td></tr>
+      <tr><th>无事件生存 S(t)</th><td>{{ '%.6f'|format(result.basis_row.survival) }}</td></tr>
+      <tr><th>累计故障率 F_f(t)</th><td>{{ '%.6f'|format(result.basis_row.cum_failure) }}</td></tr>
+      <tr><th>累计预防率 F_p(t)</th><td>{{ '%.6f'|format(result.basis_row.cum_preventive) }}</td></tr>
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">该小时早于所有台账时点，尚无泵进入风险集，累计故障率为 0。</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>台账汇总与 CSV 上传</h1>
+
+<section class="card">
+  <h2>当前汇总状态</h2>
+  <dl class="meta-grid">
+    <div><dt>在册泵总数</dt><dd>{{ meta.get('pump_count', '0') }}</dd></div>
+    <div><dt>汇总更新时间 (UTC)</dt><dd>{{ meta.get('summary_updated_at', '—') }}</dd></div>
+    <div><dt>最近数据来源</dt><dd>{{ meta.get('last_source', '—') }}</dd></div>
+    <div><dt>时点行数</dt><dd>{{ table|length }}</dd></div>
+  </dl>
+</section>
+
+<section class="card">
+  <h2>上传 CSV（每泵一行，整体替换台账）</h2>
+  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
+    <input type="file" name="csv_file" accept=".csv,text/csv" required>
+    <button type="submit" class="btn btn-primary">上传并重算</button>
+  </form>
+  <details class="help">
+    <summary>CSV 格式说明 / 示例</summary>
+    <p>必需四列，表头支持中英文：<code>泵号</code>、<code>入册累计运行小时</code>、<code>出册累计运行小时</code>、<code>结束方式</code>。</p>
+    <p>结束方式取值：<code>故障</code>（failure）、<code>预防更换</code>（preventive）、<code>观察结束</code>（censored）。</p>
+    <pre>泵号,入册累计运行小时,出册累计运行小时,结束方式
+P001,0,1200,故障
+P002,0,2000,预防更换
+P003,500,3000,观察结束
+P004,1000,2600,故障</pre>
+  </details>
+</section>
+
+<section class="card">
+  <h2>逐时点计算明细（汇总表）</h2>
+  {% if table %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>运行小时 t</th>
+        <th>新入册</th>
+        <th>在册数 n(t)</th>
+        <th>故障 d_f</th>
+        <th>预防更换 d_p</th>
+        <th>观察结束 d_c</th>
+        <th>故障风险率 d_f/n</th>
+        <th>预防风险率 d_p/n</th>
+        <th>无事件生存 S(t)</th>
+        <th>累计故障率 F_f(t)</th>
+        <th>累计预防率 F_p(t)</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in table %}
+      <tr>
+        <td>{{ '%.2f'|format(row.t_hours) }}</td>
+        <td>{{ row.entered }}</td>
+        <td>{{ row.at_risk }}</td>
+        <td>{{ row.failures }}</td>
+        <td>{{ row.preventive }}</td>
+        <td>{{ row.censored }}</td>
+        <td>{{ '%.4f'|format(row.hazard_failure) }}</td>
+        <td>{{ '%.4f'|format(row.hazard_preventive) }}</td>
+        <td>{{ '%.4f'|format(row.survival) }}</td>
+        <td class="strong">{{ '%.4f'|format(row.cum_failure) }}</td>
+        <td>{{ '%.4f'|format(row.cum_preventive) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">暂无数据，请先上传 CSV。</p>
+  {% endif %}
+</section>
+{% endblock %}

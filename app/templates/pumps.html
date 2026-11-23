@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>泵台账</h1>
+  <a class="btn btn-primary" href="{{ url_for('pump_new') }}">新增 / 更正单泵</a>
+</div>
+{% if pumps %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>泵号</th><th>入册小时</th><th>出册小时</th><th>结束方式</th><th>更新时间 (UTC)</th><th>操作</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in pumps %}
+    <tr>
+      <td>{{ p.pump_id }}</td>
+      <td>{{ '%.2f'|format(p.entry_hours) }}</td>
+      <td>{{ '%.2f'|format(p.exit_hours) }}</td>
+      <td>{{ event_labels[p.event_type] }}</td>
+      <td>{{ p.updated_at }}</td>
+      <td><a class="btn btn-small" href="{{ url_for('pump_edit', pump_id=p.pump_id) }}">更正</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="empty">台账为空，请先在首页上传 CSV。</p>
+{% endif %}
+{% endblock %}

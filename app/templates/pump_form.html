@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ '更正泵记录' if existing else '新增 / 更正单泵记录' }}</h1>
+<section class="card">
+  {% if errors %}
+  <div class="flash flash-error">
+    <strong>表单有误，未写入任何数据（原值保留）：</strong>
+    <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  <form method="post" class="pump-form">
+    <label>泵号
+      <input name="pump_id" value="{{ form.get('pump_id', existing.pump_id if existing else '') }}"
+             {% if existing %}readonly{% endif %} required>
+    </label>
+    {% if existing %}<p class="hint">更正已有泵时泵号不可改；如要换泵号请新增新记录。</p>{% endif %}
+    <label>入册累计运行小时
+      <input name="entry_hours" type="number" step="any" min="0"
+             value="{{ form.get('entry_hours', existing.entry_hours if existing else '') }}" required>
+    </label>
+    <label>出册累计运行小时
+      <input name="exit_hours" type="number" step="any" min="0"
+             value="{{ form.get('exit_hours', existing.exit_hours if existing else '') }}" required>
+    </label>
+    <label>结束方式
+      <select name="event_type" required>
+        {% for et in event_types %}
+        <option value="{{ et }}" {% if form.get('event_type', existing.event_type if existing else '') == et %}selected{% endif %}>
+          {{ event_labels[et] }}（{{ et }}）
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">保存（台账与汇总同事务生效）</button>
+      <a class="btn" href="{{ url_for('pumps') }}">取消</a>
+    </div>
+  </form>
+  <p class="hint">只需提交本泵数据；服务端在同一事务内更新该泵并重算汇总，无需读取其他泵明细。</p>
+</section>
+{% endblock %}

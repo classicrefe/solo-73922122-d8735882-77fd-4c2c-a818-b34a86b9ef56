@@ -1,0 +1,21 @@
+services:
+  web:
+    build: .
+    image: pump-incidence-app:latest
+    container_name: pump-incidence-app
+    ports:
+      - "8000:8000"
+    environment:
+      PUMP_DB: /app/instance/pumps.db
+      FLASK_SECRET_KEY: change-this-in-production
+    volumes:
+      - pump_data:/app/instance
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  pump_data:
